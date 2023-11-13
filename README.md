@@ -30,7 +30,7 @@ The Iltalehti.fi Scraper is a simple application that scrapes front-page article
 1. **Run the application:**
 
     ```bash
-    node app.js
+    npm run dev
     ```
 
 2. **Open your web browser and navigate to `http://localhost:3000` to view the results.**
