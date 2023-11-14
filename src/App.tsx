@@ -14,13 +14,23 @@ function countKeywordOccurrences(keywordArrays: string[][]): {
 } {
   const keywordCounts: { [key: string]: number } = {};
 
-  keywordArrays.forEach((keywordArray) => {
-    keywordArray?.forEach((keyword) => {
-      if (keyword !== undefined) {
-        keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1;
+  for (let i = 0; i < keywordArrays.length; i++) {
+    const keywordArray = keywordArrays[i];
+
+    if (keywordArray) {
+      for (let j = 0; j < keywordArray.length; j++) {
+        const keyword = keywordArray[j];
+
+        if (keyword !== undefined) {
+          if (keyword in keywordCounts) {
+            keywordCounts[keyword]++;
+          } else {
+            keywordCounts[keyword] = 1;
+          }
+        }
       }
-    });
-  });
+    }
+  }
 
   return keywordCounts;
 }
@@ -30,6 +40,7 @@ function findArticleObjects(data: any[]): Article[] {
 
   function searchObjects(obj: any) {
     if (typeof obj === "object" && obj !== null) {
+      // Check if the object has the required properties
       if (
         "type" in obj &&
         obj.type === "article" &&
@@ -39,6 +50,7 @@ function findArticleObjects(data: any[]): Article[] {
         foundObjects.push(obj.article);
       }
 
+      // Recursively search through nested structures
       for (const key in obj) {
         if (obj.hasOwnProperty(key)) {
           searchObjects(obj[key]);
@@ -47,12 +59,14 @@ function findArticleObjects(data: any[]): Article[] {
     }
   }
 
+  // Start searching from the top-level array
   data.forEach(searchObjects);
 
   return foundObjects;
 }
 
 function App(): JSX.Element {
+  const [articles, setArticles] = useState<Article[]>([]);
   const [keywordCounts, setKeywordCounts] = useState<{
     [key: string]: number;
   } | null>(null);
@@ -65,56 +79,65 @@ function App(): JSX.Element {
         );
 
         const data = await response.json();
-        const tmp = findArticleObjects(data.response);
-        const keywords = tmp.flatMap((x) => x?.keywords || []);
-        const counts = countKeywordOccurrences([keywords]);
+        const tmp = await findArticleObjects(data.response);
+        const keywords = tmp.map((x) => x?.keywords && x?.keywords);
+        const counts = countKeywordOccurrences(keywords);
 
         console.log(counts);
+        // for (const count in counts) {
+        //   console.log(Object.keys(count));
+        // }
 
-        if (!areKeywordCountsEqual(counts, keywordCounts)) {
-          setKeywordCounts(counts);
-          createChart(counts);
-        } else {
-          console.log("Data has not changed.");
-        }
+        setKeywordCounts(counts);
+        createChart(counts);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
 
     fetchData();
-
-    const intervalId = setInterval(fetchData, 120 * 5 * 60 * 1000);
-
-    return () => clearInterval(intervalId);
-  }, [keywordCounts]);
+  }, []);
 
   function createChart(keywordCounts: { [key: string]: number }): void {
-    // ... (your existing chart creation logic)
-  }
+    // Sort the keywords based on their counts in descending order
+    const sortedKeywords = Object.keys(keywordCounts).sort(
+      (a, b) => keywordCounts[b] - keywordCounts[a]
+    );
 
-  function areKeywordCountsEqual(
-    counts1: { [key: string]: number },
-    counts2: { [key: string]: number } | null
-  ): boolean {
-    if (counts2 === null) {
-      return false;
+    // Get the top 25 keywords and their counts
+    const topKeywords = sortedKeywords.slice(1, 26);
+    const counts = topKeywords.map((keyword) => keywordCounts[keyword]);
+
+    const ctx = document.getElementById(
+      "keywordChart"
+    ) as HTMLCanvasElement | null;
+    if (!ctx) {
+      console.error("Canvas element not found");
+      return;
     }
 
-    const keys1 = Object.keys(counts1);
-    const keys2 = Object.keys(counts2);
-
-    if (keys1.length !== keys2.length) {
-      return false;
-    }
-
-    for (const key of keys1) {
-      if (counts1[key] !== counts2[key]) {
-        return false;
-      }
-    }
-
-    return true;
+    new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: topKeywords,
+        datasets: [
+          {
+            label: "Keyword Counts",
+            data: counts,
+            backgroundColor: "rgba(75, 192, 192, 0.2)",
+            borderColor: "rgba(75, 192, 192, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+          },
+        },
+      },
+    });
   }
 
   return (
